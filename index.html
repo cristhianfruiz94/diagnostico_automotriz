@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Prototipo de app de taller en español para diagnosticar y reparar transmisiones automáticas con ayuda de IA.">
+<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Mecánico IA Transmisiones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: una sola columna tipo "orden de trabajo" en el teléfono; en escritorio, trabajo a la izquierda y ficha del vehículo/progreso a la derecha. Barra de acciones fija abajo. */
+:root{
+  --bg:#EEF1F4; --surface:#FFFFFF; --sunk:#E2E7ED; --line:#C3CCD6;
+  --fg:#111820; --muted:#4A5866;
+  --accent:#1D4F91; --accent-fg:#FFFFFF; --accent-soft:#DCE6F4;
+  --ok:#11703A; --ok-soft:#DDF1E4;
+  --warn:#8A5A00; --warn-soft:#FFF0C7; --warn-bar:#E7A800;
+  --stop:#B3261E; --stop-soft:#FBE1DE;
+  --info:#1D4F91; --info-soft:#DCE6F4;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F151C; --surface:#18212B; --sunk:#222D39; --line:#33414F;
+  --fg:#F2F5F8; --muted:#A9B6C3;
+  --accent:#6FA4EA; --accent-fg:#08111C; --accent-soft:#1D3150;
+  --ok:#5FD08C; --ok-soft:#123222;
+  --warn:#FFC94D; --warn-soft:#3A2D0A; --warn-bar:#E7A800;
+  --stop:#FF8A80; --stop-soft:#3D1715;
+  --info:#6FA4EA; --info-soft:#1D3150; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F151C; --surface:#18212B; --sunk:#222D39; --line:#33414F;
+  --fg:#F2F5F8; --muted:#A9B6C3;
+  --accent:#6FA4EA; --accent-fg:#08111C; --accent-soft:#1D3150;
+  --ok:#5FD08C; --ok-soft:#123222;
+  --warn:#FFC94D; --warn-soft:#3A2D0A; --warn-bar:#E7A800;
+  --stop:#FF8A80; --stop-soft:#3D1715;
+  --info:#6FA4EA; --info-soft:#1D3150; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:18px;line-height:1.45;-webkit-text-size-adjust:100%}
+button,input,textarea{font:inherit;color:inherit}
+h1,h2,h3{font-family:var(--f-display);line-height:1.1;margin:0;text-wrap:balance}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* barra superior */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:2px solid var(--line);padding:10px 16px;display:flex;gap:10px;align-items:center}
+.brand{font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:.02em;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.brand .wrench{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:8px;background:var(--accent);color:var(--accent-fg);font-size:18px}
+.top .sp{flex:1;min-width:0}
+.vchip{min-width:0;font-weight:600;font-size:15px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbtn{border:2px solid var(--line);background:var(--surface);border-radius:8px;min-height:44px;padding:0 12px;font-weight:700;font-size:15px;cursor:pointer;white-space:nowrap}
+
+/* contenedor */
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:16px 230px}
+.grid{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:900px){.grid{grid-template-columns:minmax(0,1fr) 340px}.side{display:block!important}.mobile-only{display:none!important}}
+.main{min-width:0;display:flex;flex-direction:column;gap:16px}
+.side{display:none}
+
+/* botones grandes */
+.big{display:flex;align-items:center;gap:14px;width:100%;min-height:68px;padding:12px 18px;border:2px solid var(--line);border-radius:var(--r);background:var(--surface);font-family:var(--f-display);font-weight:700;font-size:22px;text-align:left;cursor:pointer}
+.big:active{transform:translateY(1px)}
+.big .ic{font-size:26px;width:34px;text-align:center;flex:none}
+.big small{display:block;font-family:var(--f-body);font-weight:500;font-size:15px;color:var(--muted)}
+.big.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.big.primary small{color:inherit;opacity:.85}
+.stack{display:flex;flex-direction:column;gap:10px}
+.choices{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.choice{min-height:60px;border:2px solid var(--line);border-radius:var(--r);background:var(--surface);font-weight:700;font-size:19px;cursor:pointer;padding:8px 10px}
+.choice.sel{border-color:var(--accent);background:var(--accent-soft)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1 1 140px}
+
+.qtitle{font-size:30px;font-weight:800}
+.eyebrow{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.hint{color:var(--muted);font-size:16px}
+.field{width:100%;min-height:60px;border:2px solid var(--line);border-radius:var(--r);background:var(--surface);padding:12px 14px;font-size:20px}
+textarea.field{min-height:90px;resize:vertical}
+
+/* tarjetas */
+.card{background:var(--surface);border:2px solid var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card.stop{border-color:var(--stop);background:var(--stop-soft)}
+.card.ok{border-color:var(--ok);background:var(--ok-soft)}
+.msg{font-size:19px;overflow-wrap:anywhere}
+.msg p{margin:0 0 .55em}.msg p:last-child{margin:0}
+.msg ul,.msg ol{margin:.2em 0 .6em;padding-left:1.3em}
+.msg li{margin:.2em 0}
+.msg h3{font-size:22px;margin:.4em 0 .3em}
+.banner{display:flex;gap:12px;align-items:flex-start;border-radius:var(--r);padding:14px 16px;font-weight:600}
+.banner .bi{font-size:26px;line-height:1}
+.banner h3{font-size:24px;margin-bottom:2px}
+.banner.ok{background:var(--ok-soft);color:var(--ok);border:2px solid var(--ok)}
+.banner.stop{background:var(--stop-soft);color:var(--stop);border:2px solid var(--stop)}
+.banner.warn{background:var(--warn-soft);color:var(--warn);border:2px solid var(--warn-bar)}
+.banner.info{background:var(--info-soft);color:var(--info);border:2px solid var(--info)}
+.banner p{margin:0;color:var(--fg);font-weight:500}
+
+.conf{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:14px;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:2px solid currentColor;width:max-content}
+.conf.confirmado{color:var(--ok)}.conf.probable{color:var(--warn)}.conf.hipotesis{color:var(--warn)}.conf.no_confirmado{color:var(--stop)}
+
+.specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.spec{border:2px solid var(--line);border-radius:var(--r);padding:12px 14px;background:var(--sunk);display:flex;flex-direction:column;gap:4px;min-width:0}
+.spec .lab{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.spec .val{font-family:var(--f-display);font-weight:800;font-size:34px;line-height:1.05;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.spec .val.none{font-size:22px;color:var(--stop)}
+.spec .src{font-size:14px;color:var(--muted)}
+
+.dx{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.dx li{border:2px solid var(--line);border-radius:var(--r);padding:10px 12px;background:var(--surface)}
+.dx b{display:block;font-size:19px}
+.dx .test{font-size:16px;color:var(--muted)}
+
+/* pedir foto */
+.photo-ask{border:2px dashed var(--accent);border-radius:var(--r);padding:16px;display:grid;grid-template-columns:110px minmax(0,1fr);gap:14px;align-items:center;background:var(--accent-soft)}
+.photo-ask svg{width:110px;height:auto}
+.photo-ask h3{font-size:24px}
+.photo-ask dl{margin:6px 0 0;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:16px}
+.photo-ask dt{font-weight:700;color:var(--muted)}
+.photo-ask dd{margin:0}
+@media (max-width:420px){.photo-ask{grid-template-columns:1fr}.photo-ask svg{width:90px}}
+
+/* paso */
+.step{border:3px solid var(--accent);border-radius:14px;background:var(--surface);padding:20px;display:flex;flex-direction:column;gap:14px}
+.step .count{font-family:var(--f-display);font-weight:800;font-size:18px;letter-spacing:.1em;color:var(--accent)}
+.step h2{font-size:32px}
+.step .bar{height:10px;border-radius:5px;background:var(--sunk);overflow:hidden}
+.step .bar i{display:block;height:100%;background:var(--accent)}
+.sec{display:flex;flex-direction:column;gap:2px}
+.sec .lab{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* progreso */
+.prog{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.prog li{display:flex;align-items:center;gap:10px;padding:7px 4px;font-size:17px}
+.dot{width:16px;height:16px;border-radius:50%;flex:none;border:2px solid var(--line);background:var(--surface)}
+.dot.hecho{background:var(--ok);border-color:var(--ok)}
+.dot.actual{background:var(--warn-bar);border-color:var(--warn-bar)}
+.prog li.actual{font-weight:700}
+.vfacts{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:16px;margin:0}
+.vfacts dt{color:var(--muted);font-weight:600}.vfacts dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+
+/* barra inferior fija */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-top:2px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px))}
+.dock .in{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.dock .acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dbtn{min-height:58px;border-radius:var(--r);border:2px solid var(--line);background:var(--surface);font-family:var(--f-display);font-weight:800;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;padding:4px 6px;line-height:1.05;text-align:center}
+.dbtn.main{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.dbtn .e{font-size:22px}
+.dock .ask{display:flex;gap:8px}
+.dock .ask input{flex:1;min-width:0;min-height:54px;border:2px solid var(--line);border-radius:var(--r);background:var(--bg);padding:0 14px;font-size:18px}
+.dock .ask button{min-width:96px}
+.dock .sub{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dbtn.sm{min-height:48px;font-size:16px}
+.dbtn.warnb{border-color:var(--warn-bar);color:var(--warn)}
+
+.thumbs{display:flex;gap:8px;flex-wrap:wrap}
+.thumb{position:relative;width:76px;height:76px;border-radius:8px;overflow:hidden;border:2px solid var(--line)}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb button{position:absolute;top:2px;right:2px;width:28px;height:28px;border-radius:50%;border:0;background:var(--stop);color:#fff;font-weight:800;cursor:pointer}
+
+.thinking{display:flex;gap:14px;align-items:center}
+.spin{width:30px;height:30px;border-radius:50%;border:4px solid var(--accent-soft);border-top-color:var(--accent);animation:sp 1s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+.checks{margin:6px 0 0;padding-left:1.2em;color:var(--muted);font-size:16px}
+
+.log{display:flex;flex-direction:column;gap:8px}
+.bub{border-radius:var(--r);padding:10px 12px;font-size:16px;max-width:92%;overflow-wrap:anywhere}
+.bub.u{align-self:flex-end;background:var(--accent-soft)}
+.bub.a{align-self:flex-start;background:var(--sunk)}
+details summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+
+.sheet{position:fixed;inset:0;z-index:40;background:color-mix(in srgb,var(--fg) 45%,transparent);display:flex;align-items:flex-end}
+.sheet .pane{background:var(--bg);width:100%;max-height:85%;overflow:auto;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:250px;z-index:50;background:var(--fg);color:var(--bg);font-weight:700;padding:12px 18px;border-radius:10px;max-width:90%}
+.jobs{display:flex;flex-direction:column;gap:8px}
+.link{background:none;border:0;color:var(--accent);font-weight:700;cursor:pointer;padding:8px 0;min-height:44px;text-align:left}
+.note{font-size:14px;color:var(--muted);font-style:italic}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="wrench" aria-hidden="true">🔧</span>MECÁNICO IA</div>
+  <div class="sp"><div class="vchip" id="vchip"></div></div>
+  <button class="tbtn mobile-only" id="btnProg" type="button">📋 Progreso</button>
+  <button class="tbtn" id="btnHome" type="button">🏠 Inicio</button>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <main class="main" id="main" aria-live="polite"></main>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+
+<div class="dock" id="dock">
+  <div class="in">
+    <div class="thumbs" id="thumbs"></div>
+    <form class="ask" id="askForm">
+      <input id="askInput" type="text" autocomplete="off" placeholder="Escribe o dicta lo que pasa…" aria-label="Mensaje">
+      <button class="dbtn main" type="submit">ENVIAR</button>
+    </form>
+    <div class="acts">
+      <button class="dbtn" type="button" id="btnFoto"><span class="e">📷</span>FOTO</button>
+      <button class="dbtn" type="button" id="btnHablar"><span class="e">🎙️</span>HABLAR</button>
+      <button class="dbtn main" type="button" id="btnAhora"><span class="e">👉</span>¿QUÉ HAGO AHORA?</button>
+    </div>
+    <div class="sub">
+      <button class="dbtn sm" type="button" id="btnNoEnt">❓ NO ENTIENDO</button>
+      <button class="dbtn sm warnb" type="button" id="btnNoCoin">⚠️ NO COINCIDE</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
+<input type="file" id="fileUp" accept="image/*" multiple hidden>
+
+<script>
+(() => {
+"use strict";
+/* ---------- utilidades ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function md(t){
+  const lines = esc(t).split(/\n/); let out = "", list = null;
+  const inl = s => s.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,;:!?]|$)/g,"$1<i>$2</i>");
+  const close = () => { if(list){ out += `</${list}>`; list = null; } };
+  for (const raw of lines){
+    const l = raw.trim();
+    let m;
+    if (!l){ close(); continue; }
+    if ((m = l.match(/^#{1,4}\s+(.*)/))){ close(); out += `<h3>${inl(m[1])}</h3>`; continue; }
+    if ((m = l.match(/^[-•]\s+(.*)/))){ if(list!=="ul"){close(); out+="<ul>"; list="ul";} out += `<li>${inl(m[1])}</li>`; continue; }
+    if ((m = l.match(/^\d+[.)]\s+(.*)/))){ if(list!=="ol"){close(); out+="<ol>"; list="ol";} out += `<li>${inl(m[1])}</li>`; continue; }
+    close(); out += `<p>${inl(l)}</p>`;
+  }
+  close(); return out;
+}
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+const lsSet = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+function toast(t){ const d=document.createElement("div"); d.className="toast"; d.textContent=t; document.body.append(d); setTimeout(()=>d.remove(),2600); }
+
+/* ---------- estado ---------- */
+const CONF = {confirmado:"🟢 Confirmado", probable:"🟡 Probable", hipotesis:"🟠 Hipótesis", no_confirmado:"🔴 No confirmado"};
+const newJob = () => ({
+  id: "t" + Date.now().toString(36), creado: Date.now(), actualizado: Date.now(),
+  intencion: "", vehiculo: {marca:"",modelo:"",anio:"",motor:"",transmision:""},
+  problema: {tipo:"",cuando:"",detalle:""},
+  diagnostico: [], etapas: [], procedimiento: null, pasoActual: 0,
+  piezas: [], notas: [], ultima: null, historial: []
+});
+let job = lsGet("mia-actual") || null;
+let jobs = [];            // trabajos guardados (resumen)
+let view = job && job.ultima ? "asistente" : "inicio";
+let wiz = null;           // asistente de preguntas en curso
+let pending = [];         // fotos por enviar
+let busy = false, ctl = null;
+let sample = null, db = null, uid = null, imgOK = false, aiState = "cargando";
+
+/* ---------- capacidades ---------- */
+(async () => {
+  if (!window.claude || !claude.use){ aiState = "no"; render(); return; }
+  try {
+    const [s, u, d] = await Promise.all([claude.use("sample"), claude.use("user"), claude.use("db")]);
+    sample = s; aiState = s ? "si" : "no";
+    if (s){ try { const lim = await s.limits(); imgOK = !!lim.images; } catch { imgOK = false; } }
+    if (u){ try { uid = await u.id(); } catch { uid = null; } }
+    db = (d && uid) ? d : null;
+    if (db) await loadJobs();
+  } catch { aiState = "no"; }
+  render();
+})();
+
+let saveChain = Promise.resolve();
+function save(){
+  if (!job) return;
+  job.actualizado = Date.now();
+  lsSet("mia-actual", job);
+  if (!db) return;
+  const snap = JSON.parse(JSON.stringify(job));
+  saveChain = saveChain.then(() => db.collection("data/users/" + uid).doc(snap.id).set(snap)).catch(() => {});
+  const i = jobs.findIndex(j => j.id === snap.id);
+  if (i >= 0) jobs[i] = snap; else jobs.unshift(snap);
+}
+async function loadJobs(){
+  try {
+    const q = await db.collection("data/users/" + uid).orderBy("actualizado","desc").limit(15).get();
+    jobs = q.docs.map(d => d.data()).filter(j => j && j.id);
+    if (!job && jobs[0] && jobs[0].ultima){ job = JSON.parse(JSON.stringify(jobs[0])); view = "asistente"; }
+  } catch { jobs = []; }
+}
+
+/* ---------- vehículo ---------- */
+const vText = v => !v ? "" : [v.marca, v.modelo, v.anio].filter(Boolean).join(" ") + (v.motor ? " · " + v.motor : "");
+const hasVehicle = () => job && job.vehiculo.marca && job.vehiculo.modelo;
+
+/* ---------- prompt para Claude ---------- */
+const RULES = `Eres "Mecánico IA": un técnico especialista en transmisiones automáticas (y manuales automatizadas) que acompaña a un mecánico en el taller a través de una app en el teléfono. No eres un chatbot generalista.
+
+IDIOMA: responde SIEMPRE en español claro de taller (Latinoamérica), aunque te escriban palabras en inglés. Si un nombre en inglés ayuda a buscar piezas, dalo una vez entre paréntesis.
+
+ESTILO: frases cortas, pasos numerados, nada de paredes de texto. Máximo ~90 palabras en "mensaje" salvo que pidan detalle. Explica cada término técnico la primera vez con palabras de taller. Nunca condescendiente. Entiende lenguaje coloquial: "la caja", "da golpe", "patina", "se amarra", "se va a neutro", "bota aceite", "se queda en tercera", "no agarra", "suena", "se calienta". Responde solo lo que se pidió.
+
+FLUJO: IDENTIFICAR → INVESTIGAR → VERIFICAR → EXPLICAR → GUIAR → COMPROBAR.
+Prioridades: PRECISIÓN > VELOCIDAD · EVIDENCIA > SUPOSICIONES · SEGURIDAD > COMPLETAR LA RESPUESTA · CLARIDAD > TECNICISMO · VERIFICACIÓN > CONFIANZA EXCESIVA.
+
+REGLAS QUE NO SE NEGOCIAN
+1. Identifica el vehículo y la caja antes de dar torques, secuencias, medidas, piezas o procedimientos específicos (un mismo modelo/año puede traer cajas distintas). Pregunta de a UNA cosa por mensaje. No vuelvas a preguntar lo que ya está en el ESTADO.
+2. NO INVENTES datos técnicos: torques, tolerancias, holguras, presiones, capacidades, niveles, tipo de ATF, números de pieza, relaciones, compatibilidades, secuencias de apriete, procedimientos de adaptación, códigos DTC, dimensiones.
+   IMPORTANTE: en esta app NO tienes acceso a internet ni a manuales. Por eso todo dato técnico específico va con confianza "no_confirmado" y valor "" (vacío), con la indicación de dónde confirmarlo (manual de servicio del fabricante para esa caja). Única excepción: si el mecánico te envió una FOTO del manual, etiqueta o catálogo donde se lee el dato, puedes darlo como "confirmado" con fuente "foto del manual/etiqueta enviada". Nunca digas "aproximadamente" ni "probablemente sean X Nm".
+3. Marca la confianza: confirmado / probable / hipotesis / no_confirmado. Nunca presentes una hipótesis como hecho.
+4. Diagnóstico de menor a mayor invasividad: inspección visual → DTC → nivel y estado del ATF → comprobaciones externas → pruebas eléctricas → presión → desmontaje parcial → desmontaje interno. No mandes a desarmar si una prueba externa lo resuelve.
+5. DETENTE (tipo "detener") si: no se puede identificar la caja, falta un dato crítico, una foto contradice lo identificado, aparece una pieza inesperada, el procedimiento sería de otra variante, hay riesgo importante, o el mecánico dice que algo no coincide. Si dice "no coincide", NUNCA asumas que él está equivocado: pregunta qué no coincide y pide foto.
+6. SEGURIDAD: antes de levantar el vehículo, trabajar debajo, bajar la caja, ATF caliente, resortes, acumuladores, presión o electricidad, da advertencias concretas. Si hace falta equipo (gato de transmisión, compresor de resortes, escáner con adaptación), dilo.
+
+DIAGNÓSTICO: reúne síntomas de a una pregunta (qué pasa y en qué cambio; frío/caliente; velocidad y condiciones; siempre/a veces; testigo o DTC; ruidos, fugas, olor; kilometraje y último cambio de ATF). Con suficiente información, da un diagnóstico diferencial ordenado por probabilidad con la prueba que confirma o descarta cada causa.
+
+REPARACIÓN: cuando el diagnóstico esté razonablemente confirmado y el vehículo identificado, propone el procedimiento POR ETAPAS (no todo de golpe): pasos cortos de una acción cada uno. Marca con foto_checkpoint=true los pasos críticos donde el mecánico debe mandar foto antes de seguir. Torques en cada paso según la regla 2.
+
+FOTOS: cuando pidas foto, di exactamente QUÉ fotografiar, DESDE DÓNDE (ángulo), A QUÉ DISTANCIA y QUÉ DEBE VERSE. Al analizar una foto separa lo que ves de lo que deduces y da nivel de confianza; las fotos son evidencia, no certeza. Si la foto es una verificación de paso, responde verificacion "ok" solo si de verdad se ve correcto; si ves algo raro o no se distingue, "detener" y explica qué revisar o qué foto falta.
+
+"NO ENTIENDO": explica el mismo paso de otra forma: más simple, dividido en partes, con una comparación o describiendo posiciones relativas. Nunca repitas el mismo texto.
+"¿QUÉ HAGO AHORA?" / "listo" / "¿qué sigue?": mira el ESTADO y da solo el siguiente paso necesario.
+"¿Dónde íbamos?": resume en 2-3 frases desde el ESTADO y da el siguiente paso.
+
+FORMATO DE RESPUESTA: responde SOLO con un objeto JSON válido, sin texto fuera de él:
+{
+ "tipo": "pregunta" | "diagnostico" | "paso" | "verificacion" | "detener" | "info",
+ "titulo": "título corto (máx 6 palabras) o vacío",
+ "mensaje": "texto para el mecánico; puede usar **negrita**, listas con '- ' y '1. '",
+ "opciones": ["respuestas rápidas que el mecánico puede tocar, máx 6, muy cortas"],
+ "pedir_foto": null | {"que":"", "desde":"", "distancia":"", "debe_verse":""},
+ "verificacion": null | "ok" | "detener",
+ "confianza": null | "confirmado" | "probable" | "hipotesis" | "no_confirmado",
+ "datos_criticos": [{"etiqueta":"Torque cárter","valor":"","confianza":"no_confirmado","fuente":"Confirmar en manual de servicio de ..."}],
+ "advertencias": ["advertencias de seguridad concretas, si aplican"],
+ "actualizar": {
+   "vehiculo": {"marca":"","modelo":"","anio":"","motor":"","transmision":""}  (solo campos nuevos o corregidos; omite si nada cambia),
+   "diagnostico": [{"causa":"","confianza":"probable","prueba":""}]  (omite si no cambia),
+   "etapas": [{"nombre":"","estado":"hecho|actual|pendiente"}]  (lista completa del trabajo; omite si no cambia),
+   "procedimiento": {"titulo":"", "herramientas":[""], "piezas":[""], "pasos":[{"titulo":"verbo + objeto","instruccion":"","herramienta":"","torque":"","torque_confianza":"no_confirmado","precaucion":"","foto_checkpoint":false,"que_fotografiar":""}]}  (solo al iniciar o cambiar de etapa),
+   "paso_actual": 0  (índice desde 0, si cambia),
+   "piezas": [""]  (piezas identificadas o reemplazadas, solo nuevas),
+   "nota": "hecho importante para recordar, o vacío"
+ }
+}`;
+
+function stateForAI(){
+  const p = job.procedimiento;
+  return JSON.stringify({
+    intencion: job.intencion, vehiculo: job.vehiculo, problema: job.problema,
+    diagnostico: job.diagnostico, etapas: job.etapas,
+    procedimiento: p ? {titulo: p.titulo, total_pasos: p.pasos.length, paso_actual: job.pasoActual,
+      pasos: p.pasos.map((s,i) => (i===job.pasoActual?"→ ":"") + (i+1) + ". " + s.titulo + (s.hecho?" (hecho)":""))} : null,
+    piezas: job.piezas, notas: job.notas.slice(-12)
+  }, null, 1);
+}
+
+async function ask(userText, opts = {}){
+  if (busy) return;
+  if (!job){ job = newJob(); }
+  const images = opts.images || pending.slice();
+  const shown = opts.shown || userText;
+  if (!sample){ showUnavailable(); return; }
+  if (images.length && !imgOK){ toast("Esta vista no puede enviar fotos. Describe lo que ves."); return; }
+  pending = []; renderThumbs();
+  job.historial.push({role:"user", content: shown + (images.length ? ` [📷 ${images.length} foto(s)]` : "")});
+  busy = true; view = "asistente"; render();
+  ctl = new AbortController();
+  const turns = job.historial.slice(-14).map(t => ({role: t.role, content: t.content}));
+  while (turns.length && turns[0].role !== "user") turns.shift();
+  const instr = RULES + "\n\nESTADO ACTUAL DEL TRABAJO:\n" + stateForAI() +
+    (images.length ? `\n\nEl mecánico adjunta ${images.length} foto(s) con su último mensaje.` + (opts.verifyStep != null ? ` Es la FOTO DE VERIFICACIÓN del paso ${opts.verifyStep+1}: "${job.procedimiento?.pasos[opts.verifyStep]?.titulo || ""}". Responde con "verificacion".` : "") : "");
+  const input = [{role:"user", content: instr + "\n\n--- CONVERSACIÓN ---"}, ...turns];
+  input[input.length-1] = {role:"user", content: userText + (images.length ? ` [📷 ${images.length} foto(s) adjunta(s)]` : "")};
+  try {
+    const r = await sample.json(input, {signal: ctl.signal, images: images.length ? images.map(x=>x.file) : undefined, cache:false});
+    applyResponse(r, opts);
+  } catch (e) {
+    job.historial.pop();
+    const code = e && e.code;
+    if (code === "cancelled") toast("Cancelado.");
+    else if (code === "not_granted" || code === "sampling_disabled"){ aiState = "no"; showUnavailable(); }
+    else if (code === "rate_limited") toast("Muchas consultas seguidas. Espera un momento y vuelve a intentar.");
+    else if (code === "image_rejected") toast("No pude abrir esa foto. Toma otra, con buena luz.");
+    else if (code === "invalid_json") toast("La respuesta llegó incompleta. Vuelve a enviar.");
+    else toast("No hubo conexión con el asistente. Intenta de nuevo.");
+  } finally {
+    busy = false; ctl = null; save(); render();
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+}
+
+function applyResponse(r, opts){
+  if (!r || typeof r !== "object") r = {tipo:"info", mensaje:String(r||"")};
+  const a = r.actualizar || {};
+  if (a.vehiculo && typeof a.vehiculo === "object") for (const k of Object.keys(job.vehiculo)) if (a.vehiculo[k]) job.vehiculo[k] = String(a.vehiculo[k]);
+  if (Array.isArray(a.diagnostico) && a.diagnostico.length) job.diagnostico = a.diagnostico.slice(0,8);
+  if (Array.isArray(a.etapas) && a.etapas.length) job.etapas = a.etapas.slice(0,16);
+  if (a.procedimiento && Array.isArray(a.procedimiento.pasos) && a.procedimiento.pasos.length){ job.procedimiento = a.procedimiento; job.pasoActual = 0; }
+  if (Number.isInteger(a.paso_actual) && job.procedimiento) job.pasoActual = Math.max(0, Math.min(a.paso_actual, job.procedimiento.pasos.length-1));
+  if (Array.isArray(a.piezas)) for (const p of a.piezas) if (p && !job.piezas.includes(p)) job.piezas.push(String(p));
+  if (a.nota) job.notas.push(String(a.nota));
+  if (opts.verifyStep != null && r.verificacion === "ok" && job.procedimiento){
+    const s = job.procedimiento.pasos[opts.verifyStep]; if (s){ s.hecho = true; s.verificado = true; }
+    if (opts.verifyStep === job.pasoActual && job.pasoActual < job.procedimiento.pasos.length-1) r._avanzar = true;
+  }
+  job.ultima = r;
+  job.historial.push({role:"assistant", content: (r.titulo ? r.titulo + ": " : "") + (r.mensaje || "") + (r.pedir_foto ? " [Pidió foto: " + r.pedir_foto.que + "]" : "")});
+  if (job.historial.length > 40) job.historial = job.historial.slice(-40);
+}
+
+function showUnavailable(){
+  job.ultima = {tipo:"info", titulo:"Asistente no disponible", mensaje:"Para que el asistente responda, abre esta app desde tu cuenta de Claude y acepta el permiso cuando lo pida.\n\nMientras tanto puedes registrar el vehículo y el problema; queda guardado aquí."};
+  view = "asistente"; render();
+}
+
+/* ---------- fotos ---------- */
+function addFiles(list){
+  for (const f of list){ if (!f.type.startsWith("image/")) continue; pending.push({file:f, url:URL.createObjectURL(f)}); }
+  pending = pending.slice(-4); renderThumbs();
+  if (pending.length){ $("#askInput").placeholder = "¿Qué quieres que revise en la foto?"; $("#askInput").focus(); }
+}
+function renderThumbs(){
+  const t = $("#thumbs");
+  t.innerHTML = pending.map((p,i) => `<div class="thumb"><img src="${p.url}" alt="Foto ${i+1}"><button type="button" data-rm="${i}" aria-label="Quitar foto">×</button></div>`).join("");
+}
+$("#thumbs").addEventListener("click", e => { const i = e.target.dataset.rm; if (i!=null){ pending.splice(+i,1); renderThumbs(); } });
+$("#fileCam").addEventListener("change", e => { addFiles(e.target.files); e.target.value=""; if (photoMode) sendPhotoMode(); });
+$("#fileUp").addEventListener("change", e => { addFiles(e.target.files); e.target.value=""; if (photoMode) sendPhotoMode(); });
+let photoMode = null; // {verifyStep} cuando la foto es un checkpoint
+function takePhoto(mode){ photoMode = mode || null; $("#fileCam").click(); }
+function sendPhotoMode(){
+  const m = photoMode; photoMode = null;
+  if (!pending.length) return;
+  if (m && m.verifyStep != null){
+    ask(`Foto de verificación del paso ${m.verifyStep+1}.`, {verifyStep: m.verifyStep, shown:`📷 Foto de verificación — paso ${m.verifyStep+1}`});
+  } else if (m && m.text){ ask(m.text, {shown: m.shown || m.text}); }
+}
+
+/* ---------- asistentes de preguntas (una a la vez) ---------- */
+const BRANDS = ["Chevrolet","Renault","Mazda","Kia","Hyundai","Toyota","Nissan","Ford","Volkswagen","Honda","Mitsubishi","Suzuki"];
+const YEARS = Array.from({length:27}, (_,i) => String(2026-i));
+const PROBLEMS = [["🔴","No entra una marcha"],["🟠","Da golpes"],["🟡","Patina"],["🔵","Hace ruido"],["🟣","Pierde aceite"],["⚫","No se mueve"],["🌡️","Se calienta"],["⚙️","No cambia / se queda en una marcha"],["❓","Otro problema"]];
+const WHEN = ["En frío","En caliente","Siempre","A veces","No estoy seguro"];
+
+function vehicleQuestions(){
+  return [
+    {k:"marca", q:"¿Qué marca es?", opts:BRANDS, free:"Otra marca"},
+    {k:"modelo", q:"¿Qué modelo?", input:"Ej: Sportage, Spark, Corolla"},
+    {k:"anio", q:"¿De qué año?", opts:YEARS, free:"Más antiguo", small:true},
+    {k:"motor", q:"¿Qué motor o cilindrada tiene?", input:"Ej: 2.0 gasolina", skip:"No sé"},
+    {k:"sabe", q:"¿Sabes qué transmisión tiene?", opts:["SÍ","NO"]},
+  ];
+}
+function startFlow(intent){
+  job = newJob(); job.intencion = intent; pending = []; renderThumbs();
+  const steps = [];
+  if (intent !== "Analizar una pieza") steps.push(...vehicleQuestions());
+  if (intent === "Diagnosticar una falla"){
+    steps.push({k:"ptipo", q:"¿Qué problema tiene?", opts:PROBLEMS.map(p=>p[0]+" "+p[1]), list:true});
+    steps.push({k:"pcuando", q:"¿Cuándo ocurre?", opts:WHEN, list:true});
+    steps.push({k:"pdetalle", q:"Cuéntame un poco más", input:"Ej: golpe al pasar de 2ª a 3ª, testigo encendido", skip:"Seguir sin detalle", area:true});
+  }
+  if (["Consultar ATF","Consultar una especificación","Seguir un procedimiento","Reparar una transmisión"].includes(intent)){
+    const ph = {"Consultar ATF":"Ej: qué ATF lleva y cuánto le cabe",
+      "Consultar una especificación":"Ej: torque de los tornillos del cárter",
+      "Seguir un procedimiento":"Ej: cambio de ATF y filtro",
+      "Reparar una transmisión":"Ej: cambiar solenoides, bajar el cuerpo de válvulas"}[intent];
+    steps.push({k:"consulta", q: intent==="Reparar una transmisión" ? "¿Qué trabajo vas a hacer?" : "¿Qué necesitas saber?", input:ph, area:true});
+  }
+  wiz = {intent, steps, i:0};
+  view = "wizard"; render();
+}
+function wizAnswer(val){
+  const s = wiz.steps[wiz.i];
+  const v = String(val||"").trim();
+  if (s.k === "sabe"){
+    if (v === "SÍ"){ wiz.steps.splice(wiz.i+1, 0, {k:"transmision", q:"¿Cuál es? (código o velocidades)", input:"Ej: A6MF1, U341E, 6 velocidades"}); }
+    else job.notas.push("El mecánico no conoce el código de la caja; identificar con foto.");
+  } else if (s.k === "ptipo") job.problema.tipo = v.replace(/^\S+\s/,"");
+  else if (s.k === "pcuando") job.problema.cuando = v;
+  else if (s.k === "pdetalle") job.problema.detalle = v === s.skip ? "" : v;
+  else if (s.k === "consulta") job.notas.push("Consulta inicial: " + v);
+  else if (s.k in job.vehiculo) job.vehiculo[s.k] = v === s.skip ? "" : v;
+  wiz.i++;
+  if (wiz.i >= wiz.steps.length) finishFlow(); else render();
+}
+function finishFlow(){
+  const intent = wiz.intent; wiz = null; save();
+  const v = vText(job.vehiculo) + (job.vehiculo.transmision ? ", caja " + job.vehiculo.transmision : "");
+  const consulta = (job.notas.find(n => n.startsWith("Consulta inicial:")) || "").replace("Consulta inicial: ","");
+  let text;
+  switch (intent){
+    case "Diagnosticar una falla":
+      text = `Quiero diagnosticar una falla. Vehículo: ${v}. Problema: ${job.problema.tipo}. Ocurre: ${job.problema.cuando}.${job.problema.detalle ? " Detalle: " + job.problema.detalle : ""}`; break;
+    case "Identificar una transmisión":
+      text = `Necesito identificar la transmisión de este vehículo: ${v}.`; break;
+    default:
+      text = `${intent}. Vehículo: ${v}. ${consulta}`;
+  }
+  if (intent === "Identificar una transmisión" || (!job.vehiculo.transmision && intent !== "Diagnosticar una falla")) text += " No sé el código de la caja.";
+  ask(text);
+}
+
+/* ---------- vistas ---------- */
+function render(){
+  $("#vchip").textContent = job && job.vehiculo.marca ? "🚗 " + vText(job.vehiculo) + (job.vehiculo.transmision ? " · " + job.vehiculo.transmision : "") : "";
+  $("#dock").hidden = view === "wizard";
+  const main = $("#main");
+  if (view === "inicio") main.innerHTML = homeView();
+  else if (view === "wizard") main.innerHTML = wizView();
+  else main.innerHTML = workView();
+  $("#side").innerHTML = job ? sideView() : "";
+  if (view === "wizard"){ const f = main.querySelector("input,textarea"); if (f) f.focus(); }
+}
+
+function homeView(){
+  const acts = [
+    ["🔍","Diagnosticar una falla","Golpes, patina, no entra una marcha"],
+    ["🔧","Reparar una transmisión","Paso a paso, con fotos de control"],
+    ["📷","Analizar una pieza","Toma una foto y te digo qué es"],
+    ["🔩","Identificar una transmisión","Con datos del carro o por foto"],
+    ["🛢️","Consultar ATF","Tipo de aceite y cantidad"],
+    ["📋","Consultar una especificación","Torques, medidas, presiones"],
+    ["📖","Seguir un procedimiento","Cambio de ATF, filtro, solenoides"],
+  ];
+  const cont = job && job.ultima ? `<button class="big primary" data-go="asistente" type="button"><span class="ic">▶</span><span>CONTINUAR TRABAJO<small>${esc(vText(job.vehiculo) || job.intencion)}${job.procedimiento ? " · Paso " + (job.pasoActual+1) + " de " + job.procedimiento.pasos.length : ""}</small></span></button>` : "";
+  const prev = jobs.filter(j => !job || j.id !== job.id).slice(0,6);
+  const unav = aiState === "no" ? `<div class="banner warn"><span class="bi">⚠️</span><div><h3>Asistente sin conexión</h3><p>Abre la app desde tu cuenta de Claude para que responda. Puedes registrar el vehículo igual.</p></div></div>` : "";
+  return `${unav}${cont}
+  <h1 class="qtitle">¿Qué quieres hacer?</h1>
+  <div class="stack">${acts.map(a => `<button class="big" type="button" data-intent="${esc(a[1])}"><span class="ic">${a[0]}</span><span>${esc(a[1])}<small>${esc(a[2])}</small></span></button>`).join("")}</div>
+  ${prev.length ? `<section class="card"><div class="eyebrow">Trabajos anteriores</div><div class="jobs">${prev.map(j => `<button class="big" type="button" data-job="${esc(j.id)}"><span class="ic">🚗</span><span>${esc(vText(j.vehiculo) || j.intencion || "Trabajo")}<small>${esc(j.intencion)} · ${new Date(j.actualizado).toLocaleDateString("es-CO",{day:"numeric",month:"short"})}</small></span></button>`).join("")}</div></section>` : ""}`;
+}
+
+function wizView(){
+  const s = wiz.steps[wiz.i];
+  const n = wiz.i + 1, tot = wiz.steps.length;
+  let body = "";
+  if (s.opts){
+    body += s.list ? `<div class="stack">${s.opts.map(o => `<button class="big" type="button" data-ans="${esc(o)}">${esc(o)}</button>`).join("")}</div>`
+                   : `<div class="choices">${s.opts.map(o => `<button class="choice" type="button" data-ans="${esc(o)}">${esc(o)}</button>`).join("")}</div>`;
+    if (s.k === "sabe") body = `<div class="stack"><button class="big primary" type="button" data-ans="SÍ"><span class="ic">✅</span>SÍ, la sé</button><button class="big" type="button" data-ans="NO"><span class="ic">📷</span><span>NO<small>La identificamos con fotos</small></span></button></div>`;
+  }
+  if (s.input || s.free){
+    const tag = s.area ? `<textarea class="field" id="wizIn" placeholder="${esc(s.input||"")}"></textarea>` : `<input class="field" id="wizIn" type="text" autocomplete="off" placeholder="${esc(s.input || "Escríbela aquí")}">`;
+    body += `<form id="wizForm" class="stack">${s.free ? `<label class="hint" for="wizIn">${esc(s.free)}:</label>` : ""}${tag}<button class="big primary" type="submit">SIGUIENTE →</button></form>`;
+    if (s.k === "pdetalle" || s.input) body += `<p class="hint">🎙️ Para hablar, toca el micrófono de tu teclado.</p>`;
+  }
+  if (s.skip) body += `<button class="big" type="button" data-ans="${esc(s.skip)}">${esc(s.skip)}</button>`;
+  return `<div class="eyebrow">${esc(wiz.intent)} · Pregunta ${n} de ${tot}</div>
+  <h1 class="qtitle">${esc(s.q)}</h1>
+  ${body}
+  <div class="row"><button class="big" type="button" data-wizback>← ATRÁS</button></div>`;
+}
+
+function photoSVG(){
+  return `<svg viewBox="0 0 120 120" aria-hidden="true"><rect x="22" y="8" width="76" height="104" rx="12" fill="var(--surface)" stroke="var(--fg)" stroke-width="4"/><rect x="30" y="22" width="60" height="70" rx="4" fill="var(--sunk)"/><path d="M38 32h10M38 32v10M82 32h-10M82 32v10M38 82h10M38 82v-10M82 82h-10M82 82v-10" stroke="var(--accent)" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="60" cy="57" r="9" fill="none" stroke="var(--accent)" stroke-width="3"/><circle cx="60" cy="102" r="5" fill="var(--fg)"/></svg>`;
+}
+
+function stepCard(){
+  const p = job.procedimiento; if (!p) return "";
+  const i = job.pasoActual, s = p.pasos[i]; if (!s) return "";
+  const pct = Math.round((i + (s.hecho?1:0)) / p.pasos.length * 100);
+  const tq = s.torque || s.torque_confianza ? `<div class="spec"><span class="lab">⚙️ Torque</span><span class="val ${s.torque ? "" : "none"}">${esc(s.torque || "No confirmado")}</span><span class="conf ${esc(s.torque_confianza||"no_confirmado")}">${CONF[s.torque_confianza] || CONF.no_confirmado}</span>${s.torque ? "" : `<span class="src">Búscalo en el manual de servicio. No uses un valor estimado.</span>`}</div>` : "";
+  const gate = s.foto_checkpoint && !s.verificado;
+  return `<section class="step" aria-label="Paso actual">
+    <div class="count">PASO ${i+1} DE ${p.pasos.length}${p.titulo ? " · " + esc(p.titulo) : ""}</div>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    <h2>🔧 ${esc(s.titulo)}</h2>
+    ${s.instruccion ? `<div class="sec"><span class="lab">Qué hacer</span><div class="msg">${md(s.instruccion)}</div></div>` : ""}
+    ${s.herramienta ? `<div class="sec"><span class="lab">Qué necesito</span><div>${esc(s.herramienta)}</div></div>` : ""}
+    ${tq}
+    ${s.precaucion ? `<div class="banner warn"><span class="bi">⚠️</span><div><p><b>${esc(s.precaucion)}</b></p></div></div>` : ""}
+    ${gate ? `<div class="banner info"><span class="bi">📷</span><div><h3>Toma una foto antes de continuar</h3><p>${esc(s.que_fotografiar || "Fotografía cómo quedó este paso, de frente y con buena luz.")}</p></div></div>
+      <button class="big primary" type="button" data-verify="${i}"><span class="ic">📷</span>TOMAR FOTO DE CONTROL</button>` : ""}
+    ${s.verificado ? `<div class="banner ok"><span class="bi">✅</span><div><h3>Parece correcto</h3><p>Puedes continuar.</p></div></div>` : ""}
+    <div class="row">
+      <button class="big" type="button" data-step="-1" ${i===0?"disabled":""}>← ATRÁS</button>
+      ${gate ? "" : (i < p.pasos.length-1 ? `<button class="big primary" type="button" data-step="1">✅ LISTO · SIGUIENTE →</button>` : `<button class="big primary" type="button" data-finish>✅ TERMINÉ ESTA ETAPA</button>`)}
+    </div>
+  </section>`;
+}
+
+function aiCard(){
+  if (busy) return `<section class="card"><div class="thinking"><div class="spin" aria-hidden="true"></div><div><b>Estoy revisando tu caso…</b><ul class="checks"><li>datos del vehículo y la caja</li><li>síntomas y fotos</li><li>qué sigue con seguridad</li></ul></div></div><button class="big" type="button" data-cancel>✋ Cancelar</button></section>`;
+  const r = job && job.ultima; if (!r) return "";
+  const kind = r.tipo === "detener" || r.verificacion === "detener" ? "stop" : r.verificacion === "ok" ? "ok" : "";
+  let h = `<section class="card ${kind}">`;
+  if (kind === "stop") h += `<div class="banner stop"><span class="bi">⚠️</span><div><h3>DETENTE</h3><p>Veo algo que debemos revisar antes de continuar.</p></div></div>`;
+  if (kind === "ok") h += `<div class="banner ok"><span class="bi">✅</span><div><h3>Parece correcto</h3><p>Puedes continuar.</p></div></div>`;
+  if (r.titulo) h += `<h2 style="font-size:26px">${esc(r.titulo)}</h2>`;
+  if (r.confianza && CONF[r.confianza]) h += `<span class="conf ${esc(r.confianza)}">${CONF[r.confianza]}</span>`;
+  if (r.mensaje) h += `<div class="msg">${md(r.mensaje)}</div>`;
+  if (Array.isArray(r.datos_criticos) && r.datos_criticos.length) h += `<div class="specs">${r.datos_criticos.map(d => `<div class="spec"><span class="lab">${esc(d.etiqueta)}</span><span class="val ${d.valor ? "" : "none"}">${esc(d.valor || "No confirmado")}</span><span class="conf ${esc(d.confianza||"no_confirmado")}">${CONF[d.confianza] || CONF.no_confirmado}</span>${d.fuente ? `<span class="src">${esc(d.fuente)}</span>` : ""}</div>`).join("")}</div>`;
+  if (Array.isArray(r.advertencias)) for (const w of r.advertencias.filter(Boolean)) h += `<div class="banner warn"><span class="bi">⚠️</span><div><p><b>${esc(w)}</b></p></div></div>`;
+  if (r.pedir_foto && r.pedir_foto.que) {
+    const f = r.pedir_foto;
+    h += `<div class="photo-ask">${photoSVG()}<div><div class="eyebrow">📷 Necesito ver esta parte</div><h3>${esc(f.que)}</h3><dl>${f.desde?`<dt>Desde</dt><dd>${esc(f.desde)}</dd>`:""}${f.distancia?`<dt>Distancia</dt><dd>${esc(f.distancia)}</dd>`:""}${f.debe_verse?`<dt>Que se vea</dt><dd>${esc(f.debe_verse)}</dd>`:""}</dl></div></div>
+    <div class="row"><button class="big primary" type="button" data-cam><span class="ic">📷</span>TOMAR FOTO</button><button class="big" type="button" data-up><span class="ic">🖼️</span>SUBIR FOTO</button></div>`;
+  }
+  if (Array.isArray(r.opciones) && r.opciones.length) h += `<div class="choices">${r.opciones.slice(0,6).map(o => `<button class="choice" type="button" data-opt="${esc(o)}">${esc(o)}</button>`).join("")}</div>`;
+  if (r.verificacion === "ok" && job.procedimiento && job.pasoActual < job.procedimiento.pasos.length-1 && job.procedimiento.pasos[job.pasoActual]?.verificado) h += `<button class="big primary" type="button" data-step="1">SIGUIENTE PASO →</button>`;
+  if (r.tipo === "diagnostico" && !job.procedimiento) h += `<button class="big" type="button" data-opt="Ya hice la prueba. Te cuento el resultado:">📝 Ya hice una prueba</button>`;
+  h += `<div class="row"><button class="link" type="button" data-speak>🔊 Leer en voz alta</button></div></section>`;
+  return h;
+}
+
+function dxCard(){
+  if (!job || !job.diagnostico.length) return "";
+  return `<section class="card"><div class="eyebrow">Posibles causas</div><ol class="dx">${job.diagnostico.map(d => `<li><span class="conf ${esc(d.confianza)}">${CONF[d.confianza]||""}</span><b>${esc(d.causa)}</b>${d.prueba ? `<span class="test">Prueba: ${esc(d.prueba)}</span>` : ""}</li>`).join("")}</ol></section>`;
+}
+
+function logCard(){
+  if (!job || job.historial.length < 3) return "";
+  return `<details class="card"><summary>💬 Ver conversación (${job.historial.length})</summary><div class="log">${job.historial.map(t => `<div class="bub ${t.role==="user"?"u":"a"}">${esc(t.content)}</div>`).join("")}</div></details>`;
+}
+
+function workView(){
+  if (!job) return homeView();
+  const order = job.procedimiento && !(job.ultima && (job.ultima.tipo === "detener" || job.ultima.pedir_foto)) && !busy
+    ? stepCard() + aiCard() : aiCard() + stepCard();
+  return order + dxCard() + logCard();
+}
+
+function sideView(){
+  const v = job.vehiculo;
+  const facts = [["Marca",v.marca],["Modelo",v.modelo],["Año",v.anio],["Motor",v.motor],["Transmisión",v.transmision||"Por identificar"]].filter(f=>f[1]);
+  let et = job.etapas;
+  if (!et.length){
+    et = [
+      {nombre:"Identificar vehículo", estado: v.marca && v.modelo ? "hecho" : "actual"},
+      {nombre:"Identificar transmisión", estado: v.transmision ? "hecho" : (v.marca ? "actual" : "pendiente")},
+      {nombre:"Describir problema", estado: job.problema.tipo ? "hecho" : "pendiente"},
+      {nombre:"Diagnóstico", estado: job.diagnostico.length ? "actual" : "pendiente"},
+      {nombre:"Procedimiento", estado: job.procedimiento ? "actual" : "pendiente"},
+      {nombre:"Verificación final", estado:"pendiente"},
+    ];
+  }
+  return `<section class="card"><div class="eyebrow">🚗 Vehículo</div>
+    ${facts.length ? `<dl class="vfacts">${facts.map(f=>`<dt>${f[0]}</dt><dd>${esc(f[1])}</dd>`).join("")}</dl>` : `<p class="hint">Sin vehículo todavía.</p>`}
+  </section>
+  <section class="card"><div class="eyebrow">Progreso</div><ul class="prog">${et.map(e => `<li class="${esc(e.estado)}"><span class="dot ${esc(e.estado)}"></span>${esc(e.nombre)}</li>`).join("")}</ul></section>
+  ${job.piezas.length ? `<section class="card"><div class="eyebrow">🔩 Piezas</div><ul class="checks" style="color:var(--fg)">${job.piezas.map(p=>`<li>${esc(p)}</li>`).join("")}</ul></section>` : ""}
+  <section class="card"><button class="link" type="button" data-donde>📍 ¿Dónde íbamos?</button><button class="link" type="button" data-nuevo>➕ Empezar otro trabajo</button></section>`;
+}
+
+/* ---------- eventos ---------- */
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const d = b.dataset;
+  if (d.intent){
+    if (d.intent === "Analizar una pieza"){ job = newJob(); job.intencion = d.intent; view = "asistente"; job.ultima = {tipo:"pregunta", titulo:"Analizar una pieza", mensaje:"Toma una foto de la pieza **sobre una superficie limpia**, de frente, a unos 30 cm, con buena luz.\n\nSi tiene números o etiqueta, toma otra foto de cerca.", pedir_foto:{que:"La pieza completa", desde:"De frente, sobre una superficie limpia", distancia:"Unos 30 cm", debe_verse:"Toda la pieza, conectores y cualquier número grabado"}}; save(); render(); return; }
+    startFlow(d.intent); return;
+  }
+  if (d.ans != null){
+    if (wiz.steps[wiz.i].k === "sabe" && d.ans === "NO"){ wizAnswer("NO"); return; }
+    wizAnswer(d.ans); return;
+  }
+  if (d.wizback != null){ if (wiz.i > 0){ wiz.i--; render(); } else { wiz = null; view = "inicio"; render(); } return; }
+  if (d.go){ view = d.go; render(); return; }
+  if (d.job){ const j = jobs.find(x => x.id === d.job); if (j){ job = JSON.parse(JSON.stringify(j)); lsSet("mia-actual", job); view = job.ultima ? "asistente" : "inicio"; render(); } return; }
+  if (d.cam != null){ takePhoto({text:"Aquí está la foto que pediste.", shown:"📷 Foto enviada"}); return; }
+  if (d.up != null){ photoMode = {text:"Aquí está la foto que pediste.", shown:"📷 Foto enviada"}; $("#fileUp").click(); return; }
+  if (d.verify != null){ takePhoto({verifyStep: +d.verify}); return; }
+  if (d.opt){ if (d.opt.endsWith(":")){ $("#askInput").value = d.opt + " "; $("#askInput").focus(); } else ask(d.opt); return; }
+  if (d.step){
+    const p = job.procedimiento; if (!p) return;
+    if (+d.step > 0){ p.pasos[job.pasoActual].hecho = true; }
+    job.pasoActual = Math.max(0, Math.min(job.pasoActual + (+d.step), p.pasos.length-1));
+    if (job.ultima && job.ultima.verificacion) job.ultima = null;
+    save(); render(); window.scrollTo({top:0}); return;
+  }
+  if (d.finish != null){ job.procedimiento.pasos[job.pasoActual].hecho = true; ask("Terminé todos los pasos de esta etapa: " + (job.procedimiento.titulo||"") + ". ¿Qué sigue?"); return; }
+  if (d.cancel != null){ ctl && ctl.abort(); return; }
+  if (d.speak != null){ speak(); return; }
+  if (d.donde != null){ closeSheet(); ask("¿Dónde íbamos?"); return; }
+  if (d.nuevo != null){ closeSheet(); job = null; lsSet("mia-actual", null); view = "inicio"; render(); return; }
+  if (d.close != null){ closeSheet(); return; }
+});
+document.addEventListener("submit", e => {
+  e.preventDefault();
+  if (e.target.id === "wizForm"){ const v = $("#wizIn").value.trim(); if (v) wizAnswer(v); else $("#wizIn").focus(); return; }
+  if (e.target.id === "askForm"){
+    const v = $("#askInput").value.trim();
+    if (!v && !pending.length){ $("#askInput").focus(); return; }
+    $("#askInput").value = ""; $("#askInput").placeholder = "Escribe o dicta lo que pasa…";
+    ask(v || "Mira esta foto.");
+  }
+});
+$("#btnHome").onclick = () => { closeSheet(); wiz = null; view = "inicio"; render(); };
+$("#btnFoto").onclick = () => takePhoto(null);
+$("#btnHablar").onclick = () => { const i = $("#askInput"); i.focus(); toast("Toca el micrófono 🎙️ de tu teclado y habla."); };
+$("#btnAhora").onclick = () => {
+  if (!job){ startFlow("Diagnosticar una falla"); return; }
+  const p = job.procedimiento;
+  if (p && !p.pasos[job.pasoActual]?.hecho && view === "asistente" && !(job.ultima && (job.ultima.tipo === "detener" || job.ultima.pedir_foto))){ job.ultima = null; render(); window.scrollTo({top:0}); toast("Este es tu paso actual."); return; }
+  ask("¿Qué hago ahora?");
+};
+$("#btnNoEnt").onclick = () => job && job.ultima ? ask("No entiendo. Explícamelo de otra forma, más sencillo.", {shown:"❓ No entiendo"}) : toast("Primero elige qué quieres hacer.");
+$("#btnNoCoin").onclick = () => {
+  if (!job){ toast("Primero elige qué quieres hacer."); return; }
+  ask("Lo que veo en el carro NO COINCIDE con lo que me dices. Detén el procedimiento.", {shown:"⚠️ No coincide"});
+};
+$("#btnProg").onclick = () => {
+  if (!job){ toast("Todavía no hay un trabajo abierto."); return; }
+  const s = document.createElement("div"); s.className = "sheet"; s.id = "sheet";
+  s.innerHTML = `<div class="pane" role="dialog" aria-label="Progreso">${sideView()}<button class="big" type="button" data-close>Cerrar</button></div>`;
+  s.addEventListener("click", ev => { if (ev.target === s) closeSheet(); });
+  document.body.append(s);
+};
+function closeSheet(){ $("#sheet")?.remove(); }
+
+function speak(){
+  const r = job && job.ultima; if (!r || !("speechSynthesis" in window)){ toast("Este teléfono no puede leer en voz alta aquí."); return; }
+  let t = [r.titulo, r.mensaje].filter(Boolean).join(". ").replace(/\*\*/g,"").replace(/[-•]\s/g,"");
+  if (job.procedimiento && !r.mensaje){ const s = job.procedimiento.pasos[job.pasoActual]; t = s.titulo + ". " + (s.instruccion||""); }
+  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = "es-ES"; const vs = speechSynthesis.getVoices().filter(v=>v.lang.startsWith("es")); if (vs[0]) u.voice = vs[0]; speechSynthesis.speak(u); } catch { toast("No se pudo leer en voz alta."); }
+}
+
+render();
+})();
+</script>
+</body>
+</html>
